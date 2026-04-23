@@ -106,6 +106,10 @@ Source data lives in `data/`. Agent output (dashboards, reports) goes to `output
 - Input data: `data/`
 - Agent output: `output/`
 
+## Open Items
+
+`TODO.md` at the project root tracks unfinished work, explore items, and known issues. When you encounter something unfinished or worth investigating but not immediately actionable, add it there. Check it at the start of a session for context on what's pending.
+
 ## Agent Workflow Integration
 
 When using slash commands (`/design`, `/plan`, `/implement`, `/current-state`, `/design-review`, `/icd`, `/test-red`, `/audit`, `/dev-orchestrate`):

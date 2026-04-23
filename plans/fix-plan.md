@@ -59,10 +59,10 @@ B. **Tool-level warning** (low effort, non-blocking)
 ## Implementation Order
 
 1. ~~**Investigate F3**~~ — DONE. Was a test bug (existing POs only partially cover demand). Test fixed.
-2. **Run multi-model evaluation** — follow `plans/test-procedure.md` with haiku, sonnet, opus to classify failures as systemic vs model-dependent before fixing
+2. **Run multi-model evaluation** — use the `/model-eval` skill to run all scenarios with haiku, sonnet, and opus. This classifies failures as systemic vs model-dependent before fixing. Run: `/model-eval` and specify the model when prompted.
 3. **Fix F1** — prompt + tool guardrail for magnet concentration (highest impact, 3 scenarios affected)
 4. **Fix F2** — duplicate order warning in `place_order`
-5. **Re-run all scenarios** — clean, re-run, re-verify
+5. **Re-run all scenarios** — use `/model-eval` again after fixes to confirm regressions are resolved
 
 ## Files to Modify
 

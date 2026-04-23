@@ -5,6 +5,12 @@ build/
 dist/
 wheels/
 *.egg-info
+*.egg
+
+# Caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Virtual environments
 .venv
@@ -15,6 +21,10 @@ data/
 # Environment
 .env
 .env.*
+
+# Coverage
+.coverage
+htmlcov/
 
 # Output
 output/

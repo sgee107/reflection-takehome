@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 from langchain_core.language_models import BaseChatModel
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from procureai.agents.prompts import build_system_prompt
 from procureai.agents.tools import ProcurementContext, build_tools
@@ -34,10 +34,10 @@ def build_agent(
     tools = build_tools(ctx)
     system_prompt = build_system_prompt(scenario, constraints, gap_df)
 
-    graph = create_react_agent(
+    graph = create_agent(
         model=llm,
         tools=tools,
-        prompt=system_prompt,
+        system_prompt=system_prompt,
     )
 
     return graph, ctx
