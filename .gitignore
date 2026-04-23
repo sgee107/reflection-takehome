@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Data (not committed)
+data/
+
+# Environment
+.env
+.env.*
+
+# Output
+output/
+
+# Claude
+.claude/
+CLAUDE.md
+
+# OS
+.DS_Store
