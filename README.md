@@ -134,7 +134,7 @@ procureai/
   discovery/
     overview.py                  Scenario summary printer
     dashboard.py                 Plotly HTML dashboard generator
-tests/                           226 tests (unit + integration + verification)
+tests/                           201 tests, 70% coverage (unit + integration + verification)
 output/                          Generated HTML reports (per-run)
 data/
   scenarios/                     6 SQLite databases (simple → complex)

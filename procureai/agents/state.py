@@ -13,7 +13,6 @@ class ProcurementState(MessagesState):
     """
 
 
-
 class ReviewerState(MessagesState):
     """State for the LLM reviewer subgraph."""
 
