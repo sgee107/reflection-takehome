@@ -5,7 +5,6 @@ from pathlib import Path
 
 import click
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from procureai.utils.db import ScenarioData, load_scenario
 
@@ -16,7 +15,15 @@ def make_table(df, title: str) -> go.Figure:
     """Create a Plotly table figure from a DataFrame."""
     if df.empty:
         fig = go.Figure()
-        fig.add_annotation(text="No data", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False, font=dict(size=16))
+        fig.add_annotation(
+            text="No data",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font=dict(size=16),
+        )
         fig.update_layout(title=title, height=150)
         return fig
 
@@ -40,16 +47,23 @@ def make_table(df, title: str) -> go.Figure:
         ]
     )
     row_height = max(28 * len(df) + 80, 200)
-    fig.update_layout(title=title, height=min(row_height, 800), margin=dict(l=20, r=20, t=50, b=20))
+    fig.update_layout(
+        title=title, height=min(row_height, 800), margin=dict(l=20, r=20, t=50, b=20)
+    )
     return fig
 
 
 def make_inventory_bar(scenario: ScenarioData) -> go.Figure:
     """Bar chart of inventory levels by component."""
-    inv = scenario.inventory.merge(scenario.components[["component_id", "name"]], on="component_id")
+    inv = scenario.inventory.merge(
+        scenario.components[["component_id", "name"]], on="component_id"
+    )
     inv = inv.sort_values("quantity_on_hand", ascending=True)
 
-    colors = ["#e74c3c" if qty < 20 else "#f39c12" if qty < 50 else "#27ae60" for qty in inv["quantity_on_hand"]]
+    colors = [
+        "#e74c3c" if qty < 20 else "#f39c12" if qty < 50 else "#27ae60"
+        for qty in inv["quantity_on_hand"]
+    ]
 
     fig = go.Figure(
         data=[
@@ -79,11 +93,21 @@ def make_schedule_timeline(scenario: ScenarioData) -> go.Figure:
     )
     if sched.empty:
         fig = go.Figure()
-        fig.add_annotation(text="No production orders", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.add_annotation(
+            text="No production orders",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
         fig.update_layout(title="Production Schedule", height=200)
         return fig
 
-    labels = [f"{row['order_id']}: {row['name']} (x{row['quantity']})" for _, row in sched.iterrows()]
+    labels = [
+        f"{row['order_id']}: {row['name']} (x{row['quantity']})"
+        for _, row in sched.iterrows()
+    ]
     deadlines = sched["materials_needed_by"].tolist()
     current = scenario.current_date
 
@@ -101,8 +125,22 @@ def make_schedule_timeline(scenario: ScenarioData) -> go.Figure:
             )
         )
 
-    fig.add_shape(type="line", x0=current, x1=current, y0=-0.5, y1=len(sched) - 0.5, line=dict(dash="dash", color="blue", width=2))
-    fig.add_annotation(x=current, y=len(sched) - 0.5, text=f"Today ({current})", showarrow=False, yshift=15, font=dict(color="blue"))
+    fig.add_shape(
+        type="line",
+        x0=current,
+        x1=current,
+        y0=-0.5,
+        y1=len(sched) - 0.5,
+        line=dict(dash="dash", color="blue", width=2),
+    )
+    fig.add_annotation(
+        x=current,
+        y=len(sched) - 0.5,
+        text=f"Today ({current})",
+        showarrow=False,
+        yshift=15,
+        font=dict(color="blue"),
+    )
     fig.update_layout(
         title="Production Schedule — Material Deadlines",
         xaxis_title="Date",
@@ -138,42 +176,69 @@ def build_dashboard(scenario: ScenarioData) -> str:
 
     # Components table
     components_fig = make_table(scenario.components, "Components")
-    sections.append(("Components", components_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        ("Components", components_fig.to_html(full_html=False, include_plotlyjs=False))
+    )
 
     # Inventory bar chart
     inv_fig = make_inventory_bar(scenario)
-    sections.append(("Inventory", inv_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        ("Inventory", inv_fig.to_html(full_html=False, include_plotlyjs=False))
+    )
 
     # Inventory table
-    inv_table = scenario.inventory.merge(scenario.components[["component_id", "name"]], on="component_id")
-    inv_table = inv_table[["component_id", "name", "quantity_on_hand", "warehouse_location"]]
+    inv_table = scenario.inventory.merge(
+        scenario.components[["component_id", "name"]], on="component_id"
+    )
+    inv_table = inv_table[
+        ["component_id", "name", "quantity_on_hand", "warehouse_location"]
+    ]
     inv_table_fig = make_table(inv_table, "Inventory Details")
-    sections.append(("Inventory Details", inv_table_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        (
+            "Inventory Details",
+            inv_table_fig.to_html(full_html=False, include_plotlyjs=False),
+        )
+    )
 
     # Bill of Materials — join product and component names for readability
     bom_display = (
-        scenario.bom
-        .merge(scenario.products[["product_id", "name"]], on="product_id")
+        scenario.bom.merge(scenario.products[["product_id", "name"]], on="product_id")
         .rename(columns={"name": "product"})
         .merge(scenario.components[["component_id", "name"]], on="component_id")
-        .rename(columns={"name": "component"})
-        [["product_id", "product", "component_id", "component", "quantity_per"]]
+        .rename(columns={"name": "component"})[
+            ["product_id", "product", "component_id", "component", "quantity_per"]
+        ]
         .sort_values(["product_id", "component_id"])
     )
     bom_fig = make_table(bom_display, "Bill of Materials")
-    sections.append(("Bill of Materials", bom_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        ("Bill of Materials", bom_fig.to_html(full_html=False, include_plotlyjs=False))
+    )
 
     # Production schedule timeline
     sched_fig = make_schedule_timeline(scenario)
-    sections.append(("Production Schedule Timeline", sched_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        (
+            "Production Schedule Timeline",
+            sched_fig.to_html(full_html=False, include_plotlyjs=False),
+        )
+    )
 
     # Production schedule table
     sched_table_fig = make_table(scenario.production_schedule, "Production Schedule")
-    sections.append(("Production Schedule", sched_table_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        (
+            "Production Schedule",
+            sched_table_fig.to_html(full_html=False, include_plotlyjs=False),
+        )
+    )
 
     # Purchase orders
     po_fig = make_table(scenario.purchase_orders, "Purchase Orders")
-    sections.append(("Purchase Orders", po_fig.to_html(full_html=False, include_plotlyjs=False)))
+    sections.append(
+        ("Purchase Orders", po_fig.to_html(full_html=False, include_plotlyjs=False))
+    )
 
     body = ""
     for title, html in sections:
@@ -191,7 +256,12 @@ def build_dashboard(scenario: ScenarioData) -> str:
 
 
 @click.command()
-@click.option("--scenario", type=click.Path(exists=True), required=True, help="Path to a scenario .sqlite file")
+@click.option(
+    "--scenario",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to a scenario .sqlite file",
+)
 @click.option("--open/--no-open", default=True, help="Open in browser after generating")
 def main(scenario: str, open: bool) -> None:
     """Generate a Plotly HTML dashboard for a scenario database."""

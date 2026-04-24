@@ -19,7 +19,13 @@ def explode_demand(scenario: ScenarioData) -> pd.DataFrame:
     merged = scenario.production_schedule.merge(scenario.bom, on="product_id")
     merged["quantity_needed"] = merged["quantity"] * merged["quantity_per"]
     return merged[
-        ["order_id", "product_id", "component_id", "quantity_needed", "materials_needed_by"]
+        [
+            "order_id",
+            "product_id",
+            "component_id",
+            "quantity_needed",
+            "materials_needed_by",
+        ]
     ].reset_index(drop=True)
 
 
@@ -29,10 +35,14 @@ def aggregate_demand(demand: pd.DataFrame) -> pd.DataFrame:
     Returns DataFrame with columns:
         component_id, total_needed, earliest_needed_by
     """
-    agg = demand.groupby("component_id").agg(
-        total_needed=("quantity_needed", "sum"),
-        earliest_needed_by=("materials_needed_by", "min"),
-    ).reset_index()
+    agg = (
+        demand.groupby("component_id")
+        .agg(
+            total_needed=("quantity_needed", "sum"),
+            earliest_needed_by=("materials_needed_by", "min"),
+        )
+        .reset_index()
+    )
     return agg
 
 
@@ -79,15 +89,28 @@ def gap_analysis(scenario: ScenarioData) -> pd.DataFrame:
     result["incoming_quantity"] = result["incoming_quantity"].fillna(0)
 
     # Compute gap
-    result["gap"] = result["total_needed"] - result["quantity_on_hand"] - result["incoming_quantity"]
+    result["gap"] = (
+        result["total_needed"]
+        - result["quantity_on_hand"]
+        - result["incoming_quantity"]
+    )
 
     # Rename for clarity and filter to shortfalls only
-    result = result.rename(columns={
-        "quantity_on_hand": "on_hand",
-        "incoming_quantity": "incoming",
-    })
+    result = result.rename(
+        columns={
+            "quantity_on_hand": "on_hand",
+            "incoming_quantity": "incoming",
+        }
+    )
     result = result[result["gap"] > 0].reset_index(drop=True)
 
     return result[
-        ["component_id", "total_needed", "on_hand", "incoming", "gap", "earliest_needed_by"]
+        [
+            "component_id",
+            "total_needed",
+            "on_hand",
+            "incoming",
+            "gap",
+            "earliest_needed_by",
+        ]
     ]

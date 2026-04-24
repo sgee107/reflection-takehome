@@ -21,10 +21,14 @@ def print_scenario(scenario: ScenarioData) -> None:
             print("  (empty)")
         else:
             with pd.option_context(
-                "display.max_rows", None,
-                "display.max_columns", None,
-                "display.width", 200,
-                "display.max_colwidth", 60,
+                "display.max_rows",
+                None,
+                "display.max_columns",
+                None,
+                "display.width",
+                200,
+                "display.max_colwidth",
+                60,
             ):
                 print(df.to_string(index=False))
         print()
@@ -40,35 +44,46 @@ def print_all_scenarios_summary() -> None:
     rows = []
     for path in scenarios:
         s = load_scenario(path)
-        rows.append({
-            "file": path.name,
-            "current_date": s.current_date,
-            "products": len(s.products),
-            "components": len(s.components),
-            "suppliers": len(s.suppliers),
-            "bom_entries": len(s.bom),
-            "catalog_entries": len(s.supplier_catalog),
-            "prod_orders": len(s.production_schedule),
-            "existing_POs": len(s.purchase_orders),
-            "description": s.description[:80],
-        })
+        rows.append(
+            {
+                "file": path.name,
+                "current_date": s.current_date,
+                "products": len(s.products),
+                "components": len(s.components),
+                "suppliers": len(s.suppliers),
+                "bom_entries": len(s.bom),
+                "catalog_entries": len(s.supplier_catalog),
+                "prod_orders": len(s.production_schedule),
+                "existing_POs": len(s.purchase_orders),
+                "description": s.description[:80],
+            }
+        )
 
     summary = pd.DataFrame(rows)
     print("=" * 70)
     print("All Scenarios Summary")
     print("=" * 70)
     with pd.option_context(
-        "display.max_rows", None,
-        "display.max_columns", None,
-        "display.width", 200,
-        "display.max_colwidth", 80,
+        "display.max_rows",
+        None,
+        "display.max_columns",
+        None,
+        "display.width",
+        200,
+        "display.max_colwidth",
+        80,
     ):
         print(summary.to_string(index=False))
     print()
 
 
 @click.command()
-@click.option("--scenario", type=click.Path(exists=True), default=None, help="Path to a specific scenario .sqlite file")
+@click.option(
+    "--scenario",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a specific scenario .sqlite file",
+)
 def main(scenario: str | None) -> None:
     """View scenario data. With --scenario, prints all tables. Without, prints a summary of all scenarios."""
     if scenario:

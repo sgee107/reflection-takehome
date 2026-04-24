@@ -4,7 +4,6 @@ Parameterized across all scenarios that have agent-placed POs.
 Each test validates a specific constraint or correctness property.
 """
 
-import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -77,7 +76,11 @@ def test_magnet_concentration_min_secondary(agent_orders):
         pytest.skip("No magnet orders in this scenario")
 
     total_qty = magnet_orders["quantity"].sum()
-    by_supplier = magnet_orders.groupby("supplier_id")["quantity"].sum().sort_values(ascending=False)
+    by_supplier = (
+        magnet_orders.groupby("supplier_id")["quantity"]
+        .sum()
+        .sort_values(ascending=False)
+    )
 
     if len(by_supplier) < 2:
         pytest.fail(
@@ -95,6 +98,7 @@ def test_magnet_concentration_min_secondary(agent_orders):
 
 # ─── MOQ compliance ──────────────────────────────────────────────────────────
 
+
 def test_moq_compliance(agent_orders, supplier_catalog):
     """Every order quantity must be ≥ supplier's minimum_order_qty."""
     merged = agent_orders.merge(
@@ -110,6 +114,7 @@ def test_moq_compliance(agent_orders, supplier_catalog):
 
 
 # ─── Price accuracy ──────────────────────────────────────────────────────────
+
 
 def test_price_accuracy(agent_orders, supplier_catalog):
     """Every unit_price must match the supplier_catalog exactly."""
@@ -131,6 +136,7 @@ def test_price_accuracy(agent_orders, supplier_catalog):
 
 
 # ─── Delivery date math ──────────────────────────────────────────────────────
+
 
 def test_delivery_date_math(agent_orders, supplier_catalog, scenario_config):
     """expected_delivery_date should be current_date + lead_time_days (possibly adjusted for air freight)."""
@@ -162,6 +168,7 @@ def test_delivery_date_math(agent_orders, supplier_catalog, scenario_config):
 
 # ─── Rationale present ───────────────────────────────────────────────────────
 
+
 def test_rationale_present(agent_orders):
     """Every purchase order must have a non-empty rationale."""
     missing = agent_orders[
@@ -174,6 +181,7 @@ def test_rationale_present(agent_orders):
 
 
 # ─── No hallucinated IDs ─────────────────────────────────────────────────────
+
 
 def test_no_hallucinated_suppliers(agent_orders, suppliers):
     """All supplier_ids in POs must exist in the suppliers table."""
@@ -193,6 +201,7 @@ def test_no_hallucinated_components(agent_orders, components):
 
 # ─── Shortfall coverage ──────────────────────────────────────────────────────
 
+
 def test_all_shortfalls_addressed(agent_orders, agent_alerts, scenario_data):
     """Every gap from gap_analysis should have either a PO or an alert mentioning it."""
     import copy
@@ -207,7 +216,9 @@ def test_all_shortfalls_addressed(agent_orders, agent_alerts, scenario_data):
         pytest.skip("No shortfalls in this scenario")
 
     ordered_components = set(agent_orders["component_id"])
-    alert_text = " ".join(agent_alerts["description"].tolist()) if not agent_alerts.empty else ""
+    alert_text = (
+        " ".join(agent_alerts["description"].tolist()) if not agent_alerts.empty else ""
+    )
 
     unaddressed = []
     for _, row in gaps.iterrows():
@@ -215,16 +226,17 @@ def test_all_shortfalls_addressed(agent_orders, agent_alerts, scenario_data):
         if cid not in ordered_components and cid not in alert_text:
             unaddressed.append(cid)
 
-    assert not unaddressed, (
-        f"Shortfalls not addressed by PO or alert: {unaddressed}"
-    )
+    assert not unaddressed, f"Shortfalls not addressed by PO or alert: {unaddressed}"
 
 
 # ─── Approved supplier check ─────────────────────────────────────────────────
 
+
 def test_only_approved_suppliers(agent_orders, suppliers):
     """All orders must go to suppliers on the approved list."""
-    merged = agent_orders.merge(suppliers[["supplier_id", "on_approved_list"]], on="supplier_id", how="left")
+    merged = agent_orders.merge(
+        suppliers[["supplier_id", "on_approved_list"]], on="supplier_id", how="left"
+    )
     unapproved = merged[merged["on_approved_list"] != 1]
     assert unapproved.empty, (
         f"Orders placed with unapproved suppliers:\n"
@@ -233,6 +245,7 @@ def test_only_approved_suppliers(agent_orders, suppliers):
 
 
 # ─── Duplicate order detection ───────────────────────────────────────────────
+
 
 def test_no_exact_duplicate_orders(agent_orders):
     """Flag if identical (component_id, supplier_id, quantity) POs exist — likely agent error."""
@@ -260,7 +273,9 @@ class TestScenario06:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.orders = load_table(self.DB, "purchase_orders")
-        self.agent_orders = self.orders[self.orders["po_number"].str.startswith("PO-AGENT-")]
+        self.agent_orders = self.orders[
+            self.orders["po_number"].str.startswith("PO-AGENT-")
+        ]
         self.alerts = load_table(self.DB, "alerts")
 
     def test_orders_placed(self):
@@ -271,10 +286,18 @@ class TestScenario06:
 
     def test_no_critical_alerts(self):
         """Simple scenario should not generate critical alerts."""
-        critical = self.alerts[
-            self.alerts["description"].str.contains("INFEASIBLE|CRITICAL", case=False, na=False)
-        ] if not self.alerts.empty else pd.DataFrame()
-        assert critical.empty, f"Unexpected critical alerts in simple scenario:\n{critical['description'].to_string()}"
+        critical = (
+            self.alerts[
+                self.alerts["description"].str.contains(
+                    "INFEASIBLE|CRITICAL", case=False, na=False
+                )
+            ]
+            if not self.alerts.empty
+            else pd.DataFrame()
+        )
+        assert critical.empty, (
+            f"Unexpected critical alerts in simple scenario:\n{critical['description'].to_string()}"
+        )
 
 
 class TestScenario02:
@@ -286,8 +309,12 @@ class TestScenario02:
     def setup(self):
         self.scenario = load_scenario(self.DB)
         self.all_orders = load_table(self.DB, "purchase_orders")
-        self.existing_orders = self.all_orders[~self.all_orders["po_number"].str.startswith("PO-AGENT-")]
-        self.agent_orders = self.all_orders[self.all_orders["po_number"].str.startswith("PO-AGENT-")]
+        self.existing_orders = self.all_orders[
+            ~self.all_orders["po_number"].str.startswith("PO-AGENT-")
+        ]
+        self.agent_orders = self.all_orders[
+            self.all_orders["po_number"].str.startswith("PO-AGENT-")
+        ]
 
     def test_existing_pos_present(self):
         """Scenario 02 should have pre-existing POs."""
@@ -295,7 +322,9 @@ class TestScenario02:
 
     def test_fewer_orders_than_baseline(self):
         """Should place fewer POs than scenario 01 (since some demand is already covered)."""
-        s01_orders = load_table(DATA_DIR / "scenario_01_baseline.sqlite", "purchase_orders")
+        s01_orders = load_table(
+            DATA_DIR / "scenario_01_baseline.sqlite", "purchase_orders"
+        )
         s01_agent = s01_orders[s01_orders["po_number"].str.startswith("PO-AGENT-")]
         assert len(self.agent_orders) <= len(s01_agent), (
             f"Scenario 02 placed {len(self.agent_orders)} orders vs scenario 01's {len(s01_agent)}. "
@@ -306,6 +335,7 @@ class TestScenario02:
         """Components fully covered by existing POs (gap=0) should not get agent orders."""
         # Compute gaps using only pre-existing POs (exclude agent-placed ones)
         import copy
+
         scenario_copy = copy.copy(self.scenario)
         scenario_copy.purchase_orders = self.existing_orders
         gaps = gap_analysis(scenario_copy)
@@ -329,13 +359,17 @@ class TestScenario03:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.orders = load_table(self.DB, "purchase_orders")
-        self.agent_orders = self.orders[self.orders["po_number"].str.startswith("PO-AGENT-")]
+        self.agent_orders = self.orders[
+            self.orders["po_number"].str.startswith("PO-AGENT-")
+        ]
         self.alerts = load_table(self.DB, "alerts")
 
     def test_has_deadline_alerts(self):
         """Tight timeline scenario must generate deadline/infeasibility alerts."""
         if self.alerts.empty:
-            pytest.fail("No alerts generated for tight timeline scenario — expected deadline alerts")
+            pytest.fail(
+                "No alerts generated for tight timeline scenario — expected deadline alerts"
+            )
 
         deadline_alerts = self.alerts[
             self.alerts["description"].str.contains(
@@ -365,7 +399,9 @@ class TestScenario05:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.orders = load_table(self.DB, "purchase_orders")
-        self.agent_orders = self.orders[self.orders["po_number"].str.startswith("PO-AGENT-")]
+        self.agent_orders = self.orders[
+            self.orders["po_number"].str.startswith("PO-AGENT-")
+        ]
         self.scenario = load_scenario(self.DB)
 
     def test_correct_current_date(self):
@@ -378,7 +414,9 @@ class TestScenario05:
         """Air freight memo expires Sept 30. No lead time reductions should be applied."""
         catalog = self.scenario.supplier_catalog
         suppliers = self.scenario.suppliers
-        international_suppliers = set(suppliers[suppliers["is_domestic"] == 0]["supplier_id"])
+        international_suppliers = set(
+            suppliers[suppliers["is_domestic"] == 0]["supplier_id"]
+        )
 
         current_date = datetime.strptime(self.scenario.current_date, "%Y-%m-%d")
 
@@ -393,7 +431,9 @@ class TestScenario05:
                 continue
             catalog_lead = int(cat_entry.iloc[0]["lead_time_days"])
             expected_delivery = current_date + timedelta(days=catalog_lead)
-            actual_delivery = datetime.strptime(row["expected_delivery_date"], "%Y-%m-%d")
+            actual_delivery = datetime.strptime(
+                row["expected_delivery_date"], "%Y-%m-%d"
+            )
 
             # Delivery should NOT be earlier than catalog lead time (no air freight)
             assert actual_delivery >= expected_delivery - timedelta(days=1), (

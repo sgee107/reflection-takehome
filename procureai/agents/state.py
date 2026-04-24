@@ -12,8 +12,9 @@ class ProcurementState(MessagesState):
     pre-computed context that tools and the LLM can reference.
     """
 
-    shortfalls_summary: str = ""
-    constraints_summary: str = ""
-    scenario_summary: str = ""
-    orders_placed: int = 0
-    remaining_gaps: int = 0
+
+
+class ReviewerState(MessagesState):
+    """State for the LLM reviewer subgraph."""
+
+    plan_accepted: bool = False

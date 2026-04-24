@@ -55,7 +55,10 @@ def load_scenario(db_path: str | Path) -> ScenarioData:
     db_path = Path(db_path)
     with sqlite3.connect(db_path) as conn:
         config = pd.read_sql_query("SELECT * FROM scenario_config", conn)
-        tables = {name: pd.read_sql_query(f"SELECT * FROM {name}", conn) for name in TABLE_NAMES}
+        tables = {
+            name: pd.read_sql_query(f"SELECT * FROM {name}", conn)
+            for name in TABLE_NAMES
+        }
 
     return ScenarioData(
         current_date=config.iloc[0]["current_date"],
@@ -88,6 +91,19 @@ CREATE TABLE IF NOT EXISTS run_orders (
 CREATE TABLE IF NOT EXISTS run_alerts (
     run_id TEXT NOT NULL,
     alert_id INTEGER NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES run_log(run_id)
+);
+
+CREATE TABLE IF NOT EXISTS decision_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    component_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    details TEXT,
+    rationale TEXT,
+    source TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    conflict_id TEXT,
     FOREIGN KEY (run_id) REFERENCES run_log(run_id)
 );
 """
@@ -126,8 +142,14 @@ def write_purchase_orders(
     db_path = Path(db_path)
     with sqlite3.connect(db_path) as conn:
         cols = [
-            "po_number", "component_id", "supplier_id", "quantity",
-            "unit_price", "order_date", "expected_delivery_date", "rationale",
+            "po_number",
+            "component_id",
+            "supplier_id",
+            "quantity",
+            "unit_price",
+            "order_date",
+            "expected_delivery_date",
+            "rationale",
         ]
         placeholders = ", ".join("?" for _ in cols)
         col_names = ", ".join(cols)
@@ -161,9 +183,7 @@ def write_alerts(
         _ensure_run_tables(conn)
         alert_ids = []
         for a in alerts:
-            cur = conn.execute(
-                "INSERT INTO alerts (description) VALUES (?)", (a,)
-            )
+            cur = conn.execute("INSERT INTO alerts (description) VALUES (?)", (a,))
             alert_ids.append(cur.lastrowid)
         if run_id:
             conn.executemany(
@@ -172,6 +192,51 @@ def write_alerts(
             )
         conn.commit()
     return len(alerts)
+
+
+def write_decision_log(db_path: str | Path, decisions: list[dict], run_id: str) -> int:
+    """INSERT decision log entries into the decision_log table.
+
+    Each dict should have: component_id, action, details (JSON string),
+    rationale, source, timestamp, conflict_id.
+    Returns the number of rows inserted.
+    """
+    if not decisions:
+        return 0
+    db_path = Path(db_path)
+    with sqlite3.connect(db_path) as conn:
+        _ensure_run_tables(conn)
+        cols = [
+            "run_id",
+            "component_id",
+            "action",
+            "details",
+            "rationale",
+            "source",
+            "timestamp",
+            "conflict_id",
+        ]
+        placeholders = ", ".join("?" for _ in cols)
+        col_names = ", ".join(cols)
+        rows = [
+            (
+                run_id,
+                d["component_id"],
+                d["action"],
+                d.get("details", ""),
+                d.get("rationale", ""),
+                d["source"],
+                d["timestamp"],
+                d.get("conflict_id"),
+            )
+            for d in decisions
+        ]
+        conn.executemany(
+            f"INSERT INTO decision_log ({col_names}) VALUES ({placeholders})",
+            rows,
+        )
+        conn.commit()
+    return len(decisions)
 
 
 def finalize_run(
@@ -207,7 +272,8 @@ def clean_run(db_path: str | Path, run_id: str | None = None) -> dict:
 
         # Delete POs
         po_numbers = [
-            r[0] for r in conn.execute(
+            r[0]
+            for r in conn.execute(
                 "SELECT po_number FROM run_orders WHERE run_id=?", (run_id,)
             ).fetchall()
         ]
@@ -222,7 +288,8 @@ def clean_run(db_path: str | Path, run_id: str | None = None) -> dict:
 
         # Delete alerts
         alert_ids = [
-            r[0] for r in conn.execute(
+            r[0]
+            for r in conn.execute(
                 "SELECT alert_id FROM run_alerts WHERE run_id=?", (run_id,)
             ).fetchall()
         ]
@@ -234,6 +301,9 @@ def clean_run(db_path: str | Path, run_id: str | None = None) -> dict:
                 alert_ids,
             )
             alerts_deleted = cur.rowcount
+
+        # Delete decision log entries
+        conn.execute("DELETE FROM decision_log WHERE run_id=?", (run_id,))
 
         # Clean up run tracking tables
         conn.execute("DELETE FROM run_orders WHERE run_id=?", (run_id,))
@@ -253,9 +323,7 @@ def list_runs(db_path: str | Path) -> pd.DataFrame:
     db_path = Path(db_path)
     with sqlite3.connect(db_path) as conn:
         _ensure_run_tables(conn)
-        return pd.read_sql_query(
-            "SELECT * FROM run_log ORDER BY started_at DESC", conn
-        )
+        return pd.read_sql_query("SELECT * FROM run_log ORDER BY started_at DESC", conn)
 
 
 def list_scenarios(data_dir: str | Path | None = None) -> list[Path]:

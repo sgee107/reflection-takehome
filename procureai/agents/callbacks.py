@@ -84,7 +84,9 @@ class RichCallbackHandler(BaseCallbackHandler):
 
                 # If no tool calls, this is the final answer
                 if not tool_calls and text_parts:
-                    self.console.print("[bold green]Agent reached final answer.[/bold green]")
+                    self.console.print(
+                        "[bold green]Agent reached final answer.[/bold green]"
+                    )
 
     # ── Tool events ─────────────────────────────────────────────
 

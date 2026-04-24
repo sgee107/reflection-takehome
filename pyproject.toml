@@ -16,6 +16,7 @@ dependencies = [
     "pypdf>=5.4.0",
     "rich>=13.0.0",
     "langchain>=1.2.15",
+    "pymupdf4llm>=1.27.2.2",
 ]
 
 [dependency-groups]
@@ -26,6 +27,11 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=6.0.0",
     "ruff>=0.11.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "llm: tests that require a real LLM API key (deselect with '-m \"not llm\"')",
 ]
 
 [tool.uv]

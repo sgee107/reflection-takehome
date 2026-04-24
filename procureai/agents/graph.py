@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pandas as pd
 from langchain_core.language_models import BaseChatModel
 from langchain.agents import create_agent
 

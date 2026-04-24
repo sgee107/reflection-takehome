@@ -6,10 +6,14 @@ import enum
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
+
+if TYPE_CHECKING:
+    from procureai.utils.db import ScenarioData
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +97,10 @@ DEFAULT_CONSTRAINTS: list[Constraint] = [
     ),
     Constraint(
         type=ConstraintType.SUPPLIER_BLOCKED,
-        params={"supplier_id": "SUP-113", "reason": "Removed from approved list — quality issues"},
+        params={
+            "supplier_id": "SUP-113",
+            "reason": "Removed from approved list — quality issues",
+        },
         source="procurement_policy.pdf",
         description="SUP-113 (Jiangsu Electronics) is blocked",
     ),
@@ -151,16 +158,97 @@ def extract_constraints(
     policy_dir: Path,
     memo_dir: Path,
     llm: BaseChatModel,
+    scenario: ScenarioData | None = None,
 ) -> list[Constraint]:
     """Extract procurement constraints from all policy and memo PDFs.
 
-    Falls back to DEFAULT_CONSTRAINTS if LLM extraction fails.
+    Uses a two-layer pipeline:
+      Layer 1: PDF → Markdown conversion with hash-based caching (pymupdf4llm)
+      Layer 2: LangGraph constraint extraction agent with DB grounding tools
+
+    Falls back to DEFAULT_CONSTRAINTS if extraction fails.
+
+    Args:
+        policy_dir: Directory containing policy PDFs.
+        memo_dir: Directory containing memo PDFs.
+        llm: Chat model for extraction.
+        scenario: ScenarioData for DB grounding (enables Layer 2 agent).
+            If None, falls back to legacy single-call extraction.
     """
-    pdf_texts = _collect_pdf_texts([policy_dir, memo_dir])
-    if not pdf_texts:
-        logger.warning("No PDF documents found — using default constraints")
+    from procureai.extraction import ensure_markdown_cache
+
+    # Layer 1: Convert PDFs to markdown (cached)
+    try:
+        md_paths = ensure_markdown_cache(policy_dir, memo_dir)
+    except Exception:
+        logger.exception("Markdown cache failed — falling back to pypdf")
+        md_paths = []
+
+    if not md_paths:
+        # Fallback: try legacy PDF text extraction
+        pdf_texts = _collect_pdf_texts([policy_dir, memo_dir])
+        if not pdf_texts:
+            logger.warning("No PDF documents found — using default constraints")
+            return list(DEFAULT_CONSTRAINTS)
+        # Legacy single-call extraction (no agent, no grounding)
+        return _legacy_extract(pdf_texts, llm)
+
+    # Read cached markdown documents
+    documents = []
+    for md_path in md_paths:
+        documents.append(md_path.read_text())
+
+    if scenario is None:
+        # No scenario data — use legacy extraction with markdown text
+        pdf_texts = [(p.stem, doc) for p, doc in zip(md_paths, documents)]
+        return _legacy_extract(pdf_texts, llm)
+
+    # Layer 2: Constraint extraction agent with DB grounding
+    try:
+        from procureai.agents.constraint_graph import build_constraint_agent
+
+        graph, working_set = build_constraint_agent(llm, scenario, documents)
+        graph.invoke(
+            {
+                "messages": [
+                    ("user", "Extract all constraints from the documents provided.")
+                ]
+            },
+            config={"recursion_limit": 40},
+        )
+
+        constraints = working_set.to_constraints()
+        edit_log = working_set.edit_log
+
+        if not constraints:
+            logger.warning("Constraint agent extracted no constraints — using defaults")
+            return list(DEFAULT_CONSTRAINTS)
+
+        logger.info(
+            "Extracted %d constraints via agent (%d edit log entries)",
+            len(constraints),
+            len(edit_log),
+        )
+        for entry in edit_log:
+            logger.info(
+                "  edit_log: %s %s — %s",
+                entry["action"],
+                entry.get("constraint_id", ""),
+                entry.get("reason", ""),
+            )
+
+        return constraints
+
+    except Exception:
+        logger.exception("Constraint agent failed — using default constraints")
         return list(DEFAULT_CONSTRAINTS)
 
+
+def _legacy_extract(
+    pdf_texts: list[tuple[str, str]],
+    llm: BaseChatModel,
+) -> list[Constraint]:
+    """Legacy single-call LLM extraction (no agent, no DB grounding)."""
     type_names = ", ".join(t.value for t in ConstraintType)
     all_constraints: list[Constraint] = []
 
@@ -172,7 +260,9 @@ def extract_constraints(
         )
         try:
             response = llm.invoke(prompt)
-            content = response.content if hasattr(response, "content") else str(response)
+            content = (
+                response.content if hasattr(response, "content") else str(response)
+            )
 
             # Strip markdown fences if present
             content = content.strip()
@@ -190,7 +280,9 @@ def extract_constraints(
                         constraint.source = filename
                     all_constraints.append(constraint)
                 except Exception:
-                    logger.warning("Skipping invalid constraint from %s: %s", filename, item)
+                    logger.warning(
+                        "Skipping invalid constraint from %s: %s", filename, item
+                    )
         except Exception:
             logger.exception("Failed to extract constraints from %s", filename)
 
@@ -198,5 +290,9 @@ def extract_constraints(
         logger.warning("LLM extraction yielded no constraints — using defaults")
         return list(DEFAULT_CONSTRAINTS)
 
-    logger.info("Extracted %d constraints from %d documents", len(all_constraints), len(pdf_texts))
+    logger.info(
+        "Extracted %d constraints from %d documents",
+        len(all_constraints),
+        len(pdf_texts),
+    )
     return all_constraints
